@@ -235,7 +235,7 @@
         //    Single combined regex so the outermost environment is consumed first,
         //    leaving nested environments as content rather than being double-wrapped.
         text = text.replace(
-            /\\begin\{(align\*?|alignat\*?|gather\*?|eqnarray\*?|multline\*?|flalign\*?|[BbpvV]?matrix|smallmatrix|cases\*?|split|CD)\}([\s\S]+?)\\end\{\1\}/g,
+            /\\begin\{(align\*?|aligned\*?|alignat\*?|alignedat\*?|gather\*?|gathered\*?|eqnarray\*?|multline\*?|flalign\*?|[BbpvV]?matrix|smallmatrix|cases\*?|split|CD)\}([\s\S]+?)\\end\{\1\}/g,
             (_, env, m) => `$$\\begin{${env}}${m}\\end{${env}}$$`
         );
 
