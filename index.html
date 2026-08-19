@@ -97,7 +97,7 @@
     const API_URL = (() => {
         if (window.location.hostname.endsWith('github.io') ||
             window.location.hostname.endsWith('github.com')) {
-            return 'VERCEL_API_URL_PLACEHOLDER';   // replaced at deploy time
+            return 'https://paste-2-doc.vercel.app/api/convert';
         }
         return '/api/convert';  // same-origin (Vercel)
     })();
