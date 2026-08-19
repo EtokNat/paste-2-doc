@@ -10,7 +10,16 @@ function normalizeMath(text) {
     text = text.replace(/\\\(([\s\S]+?)\\\)/g, (_, m) => `$${m}$`);
     text = text.replace(/\\\[([\s\S]+?)\\\]/g, (_, m) => `$$${m}$$`);
 
-    // 2. Fix pandoc's strict adjacency rule (tex_math_dollars):
+    // 2. Convert LaTeX display-math environments → $$...$$
+    //    Pandoc in markdown mode parses \begin{equation}...\end{equation} as a
+    //    RawBlock "tex" and then SILENTLY DROPS it when writing DOCX.
+    //    Wrapping in $$...$$ makes pandoc treat the content as a Math element instead.
+    text = text.replace(
+        /\\begin\{(equation\*?|align\*?|gather\*?|eqnarray\*?|multline\*?|flalign\*?|displaymath)\}([\s\S]+?)\\end\{\1\}/g,
+        (_, _env, m) => `$$${m.trim()}$$`
+    );
+
+    // 3. Fix pandoc's strict adjacency rule (tex_math_dollars):
     //    "The opening $ must have a non-space character immediately to its right,
     //     and the closing $ must have a non-space character immediately to its left."
     //    Many AI systems output "$ expr $" (spaced) — strip those boundary spaces.
