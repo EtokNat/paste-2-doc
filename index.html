@@ -212,24 +212,40 @@
 
     // ─── Math normaliser ──────────────────────────────────────────────────────
     function normalizeMath(text) {
-        // Backslash delimiters → dollar delimiters
+        // 1. Backslash delimiters → dollar delimiters
         text = text.replace(/\\\(([\s\S]+?)\\\)/g, (_, m) => `$${m}$`);
         text = text.replace(/\\\[([\s\S]+?)\\\]/g, (_, m) => `$$${m}$$`);
-        // LaTeX display environments → $$...$$
-        // equation/displaymath: strip wrapper (≡ $$...$$; KaTeX rejects \begin{equation} inside $$)
+
+        // 2. Shield existing $$…$$ and $…$ so the environment regexes below
+        //    don't re-wrap content already inside math delimiters.
+        const shieldStore = [];
+        const SHIELD = '\x01S', SHIELDEND = '\x01';
+        const shield = m => { shieldStore.push(m); return `${SHIELD}${shieldStore.length-1}${SHIELDEND}`; };
+        text = text
+            .replace(/\$\$([\s\S]+?)\$\$/g, shield)
+            .replace(/(?<!\$)\$([^\n$]+?)\$(?!\$)/g, shield);
+
+        // 3. Bare LaTeX block environments → $$…$$
+        //    equation/displaymath: strip wrapper (KaTeX rejects \begin{equation} inside $$)
         text = text.replace(
             /\\begin\{(equation\*?|displaymath)\}([\s\S]+?)\\end\{\1\}/g,
             (_, _env, m) => `$$${m.trim()}$$`
         );
-        // align/gather/etc.: keep wrapper inside $$ — KaTeX needs it to interpret & and \\
+        //    All other block environments: keep wrapper inside $$.
+        //    Single combined regex so the outermost environment is consumed first,
+        //    leaving nested environments as content rather than being double-wrapped.
         text = text.replace(
-            /\\begin\{(align\*?|gather\*?|eqnarray\*?|multline\*?|flalign\*?)\}([\s\S]+?)\\end\{\1\}/g,
+            /\\begin\{(align\*?|alignat\*?|gather\*?|eqnarray\*?|multline\*?|flalign\*?|[BbpvV]?matrix|smallmatrix|cases\*?|split|CD)\}([\s\S]+?)\\end\{\1\}/g,
             (_, env, m) => `$$\\begin{${env}}${m}\\end{${env}}$$`
         );
-        // Strip boundary spaces inside $$ … $$ and $ … $ so both pandoc and
-        // KaTeX see the content flush against the delimiter (pandoc's hard rule).
+
+        // 4. Restore shielded blocks
+        text = text.replace(new RegExp(`${SHIELD}(\\d+)${SHIELDEND}`, 'g'), (_, i) => shieldStore[+i]);
+
+        // 5. Strip boundary spaces (pandoc tex_math_dollars strict rule)
         text = text.replace(/\$\$[ \t]+([\s\S]+?)[ \t]+\$\$/g, (_, m) => `$$${m}$$`);
         text = text.replace(/(?<!\$)\$[ \t]+([^\n$]+?)[ \t]+\$(?!\$)/g, (_, m) => `$${m}$`);
+
         return text;
     }
 
@@ -237,7 +253,22 @@
     function renderPreview() {
         const raw = input.value;
         if (!raw.trim()) { preview.innerHTML = ''; return; }
-        preview.innerHTML = marked.parse(normalizeMath(raw));
+
+        const normalized = normalizeMath(raw);
+
+        // Shield math from marked.js: marked has no math awareness and corrupts
+        // \\ → \ (breaks LaTeX row separators) and & → &amp; inside $…$ blocks.
+        const mathStore = [];
+        const TOK = 'MTHP' + Math.random().toString(36).slice(2, 8).toUpperCase();
+        const stash = m => { mathStore.push(m); return `${TOK}${mathStore.length-1}E`; };
+        const shielded = normalized
+            .replace(/\$\$([\s\S]+?)\$\$/g, stash)
+            .replace(/(?<!\$)\$([^\n$]+?)\$(?!\$)/g, stash);
+
+        let html = marked.parse(shielded);
+        html = html.replace(new RegExp(`${TOK}(\\d+)E`, 'g'), (_, i) => mathStore[+i]);
+
+        preview.innerHTML = html;
         renderMathInElement(preview, {
             delimiters: [
                 { left: '$$', right: '$$', display: true  },

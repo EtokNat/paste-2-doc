@@ -10,29 +10,34 @@ function normalizeMath(text) {
     text = text.replace(/\\\(([\s\S]+?)\\\)/g, (_, m) => `$${m}$`);
     text = text.replace(/\\\[([\s\S]+?)\\\]/g, (_, m) => `$$${m}$$`);
 
-    // 2. Convert LaTeX display-math environments → $$...$$
-    //    Pandoc drops \begin{equation}...\end{equation} as a RawBlock "tex" in DOCX.
-    //
-    //    Two cases:
-    //    a) equation / displaymath  →  strip wrapper (they are semantically identical
-    //       to $$...$$, and KaTeX does NOT support \begin{equation} inside display math)
-    //    b) align / gather / etc.   →  KEEP wrapper inside $$...$$  because KaTeX and
-    //       pandoc need the environment name to interpret & alignment and \\ line-breaks.
-    //       Stripping it leaves bare & and \\ that both renderers reject.
+    // 2. Shield existing $$…$$ and $…$ so the environment regexes below
+    //    don't re-wrap content already inside math delimiters.
+    const shieldStore = [];
+    const SHIELD = '\x01S', SHIELDEND = '\x01';
+    const shield = m => { shieldStore.push(m); return `${SHIELD}${shieldStore.length-1}${SHIELDEND}`; };
+    text = text
+        .replace(/\$\$([\s\S]+?)\$\$/g, shield)
+        .replace(/(?<!\$)\$([^\n$]+?)\$(?!\$)/g, shield);
+
+    // 3. Bare LaTeX block environments → $$…$$
+    //    equation/displaymath: strip wrapper (pandoc drops \begin{equation} as RawBlock "tex")
     text = text.replace(
         /\\begin\{(equation\*?|displaymath)\}([\s\S]+?)\\end\{\1\}/g,
         (_, _env, m) => `$$${m.trim()}$$`
     );
+    //    All other block environments: keep wrapper inside $$.
+    //    Single combined regex so the outermost environment is consumed first,
+    //    leaving nested environments as content rather than being double-wrapped.
     text = text.replace(
-        /\\begin\{(align\*?|gather\*?|eqnarray\*?|multline\*?|flalign\*?)\}([\s\S]+?)\\end\{\1\}/g,
+        /\\begin\{(align\*?|alignat\*?|gather\*?|eqnarray\*?|multline\*?|flalign\*?|[BbpvV]?matrix|smallmatrix|cases\*?|split|CD)\}([\s\S]+?)\\end\{\1\}/g,
         (_, env, m) => `$$\\begin{${env}}${m}\\end{${env}}$$`
     );
 
-    // 3. Fix pandoc's strict adjacency rule (tex_math_dollars):
-    //    "The opening $ must have a non-space character immediately to its right,
-    //     and the closing $ must have a non-space character immediately to its left."
-    //    Many AI systems output "$ expr $" (spaced) — strip those boundary spaces.
-    //    Process $$ first so its two $ chars are not misread as two single-$ openers.
+    // 4. Restore shielded blocks
+    text = text.replace(new RegExp(`${SHIELD}(\\d+)${SHIELDEND}`, 'g'), (_, i) => shieldStore[+i]);
+
+    // 5. Fix pandoc's strict adjacency rule (tex_math_dollars):
+    //    opening/closing $ must be flush against content — strip boundary spaces.
     text = text.replace(/\$\$[ \t]+([\s\S]+?)[ \t]+\$\$/g, (_, m) => `$$${m}$$`);
     text = text.replace(/(?<!\$)\$[ \t]+([^\n$]+?)[ \t]+\$(?!\$)/g, (_, m) => `$${m}$`);
 
