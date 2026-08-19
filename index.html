@@ -212,8 +212,13 @@
 
     // ─── Math normaliser ──────────────────────────────────────────────────────
     function normalizeMath(text) {
+        // Backslash delimiters → dollar delimiters
         text = text.replace(/\\\(([\s\S]+?)\\\)/g, (_, m) => `$${m}$`);
         text = text.replace(/\\\[([\s\S]+?)\\\]/g, (_, m) => `$$${m}$$`);
+        // Strip boundary spaces inside $$ … $$ and $ … $ so both pandoc and
+        // KaTeX see the content flush against the delimiter (pandoc's hard rule).
+        text = text.replace(/\$\$[ \t]+([\s\S]+?)[ \t]+\$\$/g, (_, m) => `$$${m}$$`);
+        text = text.replace(/(?<!\$)\$[ \t]+([^\n$]+?)[ \t]+\$(?!\$)/g, (_, m) => `$${m}$`);
         return text;
     }
 

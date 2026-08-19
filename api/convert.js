@@ -6,10 +6,18 @@ const crypto = require('crypto');
 const path = require('path');
 
 function normalizeMath(text) {
-    // \( ... \) → $ ... $  (AI inline math delimiters)
+    // 1. Backslash-paren/bracket → dollar delimiters  (\( \) and \[ \])
     text = text.replace(/\\\(([\s\S]+?)\\\)/g, (_, m) => `$${m}$`);
-    // \[ ... \] → $$ ... $$  (AI display math delimiters)
     text = text.replace(/\\\[([\s\S]+?)\\\]/g, (_, m) => `$$${m}$$`);
+
+    // 2. Fix pandoc's strict adjacency rule (tex_math_dollars):
+    //    "The opening $ must have a non-space character immediately to its right,
+    //     and the closing $ must have a non-space character immediately to its left."
+    //    Many AI systems output "$ expr $" (spaced) — strip those boundary spaces.
+    //    Process $$ first so its two $ chars are not misread as two single-$ openers.
+    text = text.replace(/\$\$[ \t]+([\s\S]+?)[ \t]+\$\$/g, (_, m) => `$$${m}$$`);
+    text = text.replace(/(?<!\$)\$[ \t]+([^\n$]+?)[ \t]+\$(?!\$)/g, (_, m) => `$${m}$`);
+
     return text;
 }
 
