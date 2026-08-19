@@ -3,3 +3,4 @@ __pycache__/
 .vercel/
 node_modules/
 paste-2-docx.html
+.vercel

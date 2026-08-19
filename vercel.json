@@ -1,8 +1,7 @@
 {
   "buildCommand": "bash build.sh",
   "functions": {
-    "api/convert.py": {
-      "runtime": "python3.12",
+    "api/convert.js": {
       "maxDuration": 30,
       "includeFiles": "api/pandoc"
     }
