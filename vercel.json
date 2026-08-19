@@ -1,5 +1,5 @@
 {
-  "buildCommand": "curl -fsSL https://github.com/jgm/pandoc/releases/download/3.9/pandoc-3.9-linux-amd64.tar.gz -o _pd.tar.gz && tar xzf _pd.tar.gz pandoc-3.9/bin/pandoc && mkdir -p api && cp pandoc-3.9/bin/pandoc api/pandoc && chmod +x api/pandoc && rm -rf _pd.tar.gz pandoc-3.9",
+  "buildCommand": "bash build.sh",
   "functions": {
     "api/convert.py": {
       "runtime": "python3.12",
