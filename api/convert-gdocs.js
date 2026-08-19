@@ -8,14 +8,23 @@ const path = require('path');
 // Complex LaTeX environments Google Docs cannot render from OMML
 const COMPLEX_ENV_RE = /\\begin\{(align\*?|aligned\*?|alignat\*?|alignedat\*?|gather\*?|gathered\*?|eqnarray\*?|multline\*?|flalign\*?|[BbpvV]?matrix|smallmatrix|cases\*?|split|CD)\}/;
 
-// Fetch a PNG from CodeCogs for a display-math LaTeX expression
+// Fetch an SVG from CodeCogs and convert it to a proper RGB PNG via resvg.
+// CodeCogs PNG output is 4-bit palette-indexed which Google Docs cannot display;
+// the SVG output uses pure path elements and renders cleanly at any size.
 async function fetchMathPng(latex) {
-    const url = 'https://latex.codecogs.com/png.image?' + encodeURIComponent(latex.trim());
+    const url = 'https://latex.codecogs.com/svg.image?' + encodeURIComponent(latex.trim());
     const res = await fetch(url, { signal: AbortSignal.timeout(9000) });
-    if (!res.ok) throw new Error(`CodeCogs ${res.status}`);
-    const buf = await res.arrayBuffer();
-    if (buf.byteLength < 50) throw new Error('CodeCogs returned empty image');
-    return Buffer.from(buf);
+    if (!res.ok) throw new Error(`CodeCogs SVG ${res.status}`);
+    const svg = await res.text();
+    if (!svg.includes('<svg')) throw new Error('CodeCogs returned invalid SVG');
+
+    const { Resvg } = require('@resvg/resvg-js');
+    const resvg = new Resvg(svg, {
+        background: 'white',               // solid white — visible in dark mode
+        fitTo: { mode: 'width', value: 1200 }, // 1200px ÷ 4in = 300 DPI — crisp
+        font: { loadSystemFonts: false }   // SVG uses paths only — no fonts needed
+    });
+    return Buffer.from(resvg.render().asPng());
 }
 
 function normalizeMath(text) {
@@ -96,8 +105,9 @@ module.exports = async function handler(req, res) {
                 const imgPath = join(tmp, `eq_${i}.png`);
                 writeFileSync(imgPath, result.value);
                 // Standalone paragraph → pandoc uses Figure style (centred) in DOCX
+                // {width=5in} prevents pandoc from using the image DPI to compute a tiny size
                 processed = processed.slice(0, start) +
-                    `\n\n![](${imgPath})\n\n` +
+                    `\n\n![](${imgPath}){width=4in fig-align="center"}\n\n` +
                     processed.slice(end);
             }
             // On failure: leave $$...$$ — pandoc converts it to OMML (best effort)

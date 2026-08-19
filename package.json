@@ -6,6 +6,7 @@
     "node": ">=18"
   },
   "dependencies": {
+    "@resvg/resvg-js": "^2.6.2",
     "marked": "^18.0.10"
   }
 }
