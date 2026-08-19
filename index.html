@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Paste to Word — AI Math Converter</title>
 
     <script src="https://cdn.tailwindcss.com"></script>
@@ -13,121 +13,215 @@
     <script src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/contrib/auto-render.min.js"></script>
 
     <style>
-        ::-webkit-scrollbar { width: 8px; }
-        ::-webkit-scrollbar-track { background: #f1f5f9; }
-        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        /* Fix: use dvh (dynamic viewport height) so browser address bar is excluded.
+           Falls back to vh for older browsers. */
+        html, body {
+            height: 100vh;
+            height: 100dvh;
+            overflow: hidden;
+        }
 
+        /* Preview typography */
         .preview-pane { font-family: Georgia, 'Times New Roman', serif; }
-        .preview-pane table { width: 100%; border-collapse: collapse; margin: 1.25rem 0; }
-        .preview-pane th, .preview-pane td { border: 1px solid #94a3b8; padding: 0.6rem 0.9rem; }
+        .preview-pane table { width: 100%; border-collapse: collapse; margin: 1.2rem 0; }
+        .preview-pane th, .preview-pane td { border: 1px solid #94a3b8; padding: 0.55rem 0.8rem; }
         .preview-pane th { background: #f1f5f9; font-weight: 700; }
-        .preview-pane h1 { font-size: 1.9em; font-weight: 700; margin: 1.4rem 0 0.6rem; border-bottom: 2px solid #e2e8f0; padding-bottom: 0.2rem; }
-        .preview-pane h2 { font-size: 1.5em; font-weight: 700; margin: 1.2rem 0 0.5rem; }
-        .preview-pane h3 { font-size: 1.2em; font-weight: 700; margin: 1rem 0 0.4rem; }
-        .preview-pane p  { margin-bottom: 0.9rem; line-height: 1.75; }
-        .preview-pane ul { list-style: disc; padding-left: 1.5rem; margin-bottom: 0.9rem; }
-        .preview-pane ol { list-style: decimal; padding-left: 1.5rem; margin-bottom: 0.9rem; }
-        .preview-pane li { margin-bottom: 0.3rem; line-height: 1.6; }
-        .preview-pane blockquote { border-left: 4px solid #3b82f6; background: #eff6ff; padding: 0.8rem 1rem; margin: 1rem 0; font-style: italic; color: #1e40af; }
-        .preview-pane code { background: #f1f5f9; padding: 0.1em 0.35em; border-radius: 3px; font-size: 0.88em; font-family: monospace; }
-        .preview-pane pre { background: #1e293b; color: #e2e8f0; padding: 1rem; border-radius: 6px; overflow-x: auto; margin: 1rem 0; }
+        .preview-pane h1 { font-size: 1.8em; font-weight: 700; margin: 1.3rem 0 0.5rem; border-bottom: 2px solid #e2e8f0; padding-bottom: 0.2rem; }
+        .preview-pane h2 { font-size: 1.45em; font-weight: 700; margin: 1.1rem 0 0.4rem; }
+        .preview-pane h3 { font-size: 1.15em; font-weight: 700; margin: 0.9rem 0 0.35rem; }
+        .preview-pane p  { margin-bottom: 0.85rem; line-height: 1.75; }
+        .preview-pane ul { list-style: disc; padding-left: 1.4rem; margin-bottom: 0.85rem; }
+        .preview-pane ol { list-style: decimal; padding-left: 1.4rem; margin-bottom: 0.85rem; }
+        .preview-pane li { margin-bottom: 0.25rem; line-height: 1.6; }
+        .preview-pane blockquote { border-left: 4px solid #3b82f6; background: #eff6ff; padding: 0.75rem 1rem; margin: 0.9rem 0; font-style: italic; color: #1e40af; }
+        .preview-pane code { background: #f1f5f9; padding: 0.1em 0.3em; border-radius: 3px; font-size: 0.87em; font-family: monospace; }
+        .preview-pane pre { background: #1e293b; color: #e2e8f0; padding: 0.9rem; border-radius: 6px; overflow-x: auto; margin: 0.9rem 0; }
         .preview-pane pre code { background: none; color: inherit; padding: 0; }
         .preview-pane strong { font-weight: 700; }
         .preview-pane em { font-style: italic; }
         .preview-pane u  { text-decoration: underline; }
         .preview-pane .katex { font-size: 1.05em; }
-        .preview-pane .katex-display { margin: 1rem 0; overflow-x: auto; }
+        .preview-pane .katex-display { margin: 0.9rem 0; overflow-x: auto; }
 
-        #statusBar { transition: opacity 0.3s; }
+        /* Tab active styles */
+        .tab-btn { position: relative; flex: 1; padding: 0.65rem 0; font-size: 0.8rem; font-weight: 600; color: #64748b; background: white; border: none; cursor: pointer; transition: color 0.15s; }
+        .tab-btn.active { color: #2563eb; }
+        .tab-btn.active::after { content: ''; position: absolute; bottom: 0; left: 8px; right: 8px; height: 2px; background: #2563eb; border-radius: 1px; }
+
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #f1f5f9; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
     </style>
 </head>
 
-<body class="bg-slate-50 h-screen flex flex-col font-sans overflow-hidden">
+<body class="bg-slate-50 flex flex-col font-sans">
 
-    <!-- Header -->
-    <header class="bg-gradient-to-r from-blue-700 to-blue-500 text-white px-5 py-3 shadow-lg flex justify-between items-center shrink-0">
-        <div>
-            <h1 class="text-lg font-bold tracking-wide leading-tight">Paste to Word</h1>
-            <p class="text-[11px] text-blue-200 mt-0.5">AI Math &amp; Science → Perfect .docx every time</p>
-        </div>
-        <div class="flex items-center gap-3">
-            <span id="statusBar" class="text-xs text-blue-200 opacity-0"></span>
-            <button id="exportBtn"
-                class="bg-white text-blue-700 px-5 py-2 rounded-md shadow font-bold text-sm
-                       hover:bg-blue-50 active:scale-95 transition-all flex items-center gap-2
-                       disabled:opacity-60 disabled:cursor-not-allowed">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                          d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
-                </svg>
-                <span id="btnText">Download .docx</span>
-            </button>
+    <!-- ═══════════════════════════════════════
+         HEADER (both mobile + desktop)
+    ═══════════════════════════════════════ -->
+    <header class="bg-gradient-to-r from-blue-700 to-blue-500 text-white shrink-0 shadow-lg"
+            style="padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) 0 env(safe-area-inset-left, 0px)">
+        <div class="flex justify-between items-center px-4 py-2.5">
+            <div>
+                <h1 class="text-base font-bold leading-tight tracking-wide">Paste to Word</h1>
+                <p class="text-[10px] text-blue-200">AI Math &amp; Science → Perfect .docx</p>
+            </div>
+            <div class="flex items-center gap-2">
+                <!-- Status only shown on desktop -->
+                <span id="statusBar" class="hidden md:inline text-xs text-blue-200 opacity-0 transition-opacity"></span>
+                <!-- Desktop download button (hidden on mobile — see tab bar below) -->
+                <button id="exportBtnDesktop"
+                    class="hidden md:flex items-center gap-2 bg-white text-blue-700 px-4 py-2 rounded-md shadow
+                           font-bold text-sm hover:bg-blue-50 active:scale-95 transition-all
+                           disabled:opacity-60 disabled:cursor-not-allowed">
+                    <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                              d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+                    </svg>
+                    <span id="btnTextDesktop">Download .docx</span>
+                </button>
+            </div>
         </div>
     </header>
 
-    <!-- Workspace -->
+    <!-- ═══════════════════════════════════════
+         MOBILE TAB BAR (hidden on md+)
+    ═══════════════════════════════════════ -->
+    <div class="md:hidden flex items-stretch border-b border-slate-200 bg-white shrink-0 shadow-sm">
+        <button class="tab-btn active" id="tabInputBtn" onclick="switchTab('input')">
+            ✏️ Input
+        </button>
+        <div class="w-px bg-slate-200 my-1.5"></div>
+        <button class="tab-btn" id="tabPreviewBtn" onclick="switchTab('preview')">
+            👁 Preview
+        </button>
+        <div class="w-px bg-slate-200 my-1.5"></div>
+        <!-- Mobile download button — always visible in tab bar -->
+        <button id="exportBtnMobile"
+            class="flex items-center justify-center gap-1.5 px-4 bg-blue-600 text-white font-bold text-xs
+                   active:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed transition-colors shrink-0">
+            <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
+                      d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+            </svg>
+            <span id="btnTextMobile">.docx</span>
+        </button>
+    </div>
+
+    <!-- ═══════════════════════════════════════
+         MAIN WORKSPACE
+    ═══════════════════════════════════════ -->
     <main class="flex-1 flex overflow-hidden">
 
-        <!-- Input -->
-        <section class="w-1/2 border-r border-slate-200 flex flex-col bg-white">
-            <div class="px-4 py-2 bg-slate-100 border-b border-slate-200 text-xs font-semibold text-slate-500 uppercase tracking-widest flex items-center justify-between">
-                <span>Markdown / AI Response Input</span>
-                <button id="clearBtn" class="text-slate-400 hover:text-red-400 text-[11px] font-normal normal-case tracking-normal transition-colors">Clear</button>
+        <!-- Input pane (full-width on mobile, half on desktop) -->
+        <section id="paneInput"
+            class="flex flex-col bg-white w-full md:w-1/2 md:border-r md:border-slate-200">
+            <!-- Desktop label (hidden on mobile — tab bar is the label) -->
+            <div class="hidden md:flex px-4 py-2 bg-slate-100 border-b border-slate-200 text-xs font-semibold text-slate-500 uppercase tracking-widest items-center justify-between shrink-0">
+                <span>Markdown / AI Response</span>
+                <button id="clearBtn" class="font-normal normal-case tracking-normal text-slate-400 hover:text-red-400 transition-colors">Clear</button>
+            </div>
+            <!-- Mobile clear button row -->
+            <div class="md:hidden flex justify-end px-3 py-1 border-b border-slate-100 shrink-0">
+                <button id="clearBtnMobile" class="text-[11px] text-slate-400 hover:text-red-400 transition-colors">Clear</button>
             </div>
             <textarea id="markdownInput"
-                class="flex-1 w-full p-5 resize-none focus:outline-none font-mono text-[13px] leading-relaxed text-slate-800 placeholder-slate-300"
-                placeholder="Paste your AI response here — supports:&#10;• LaTeX math:  \( E = mc^2 \)  or  \[ \int_0^\infty e^{-x}\,dx = 1 \]&#10;• Dollar math: $x^2 + y^2 = r^2$ or $$\frac{d}{dx}f(x)$$&#10;• **Bold**, *italic*, __underline__ (via &lt;u&gt;text&lt;/u&gt;)&#10;• Tables, lists, headings, blockquotes, code blocks"></textarea>
+                class="flex-1 w-full px-4 py-3 md:p-5 resize-none focus:outline-none font-mono text-[13px] leading-relaxed text-slate-800 placeholder-slate-300"
+                placeholder="Paste your AI response here…&#10;&#10;Supports:&#10;• \( E = mc^2 \) or \[ \frac{a}{b} \] (AI math)&#10;• $x^2$ or $$\int_0^\infty dx$$ (dollar math)&#10;• **Bold**, *italic*, <u>underline</u>&#10;• Tables, lists, headings, blockquotes"></textarea>
         </section>
 
-        <!-- Preview -->
-        <section class="w-1/2 flex flex-col bg-white">
-            <div class="px-4 py-2 bg-slate-100 border-b border-slate-200 text-xs font-semibold text-slate-500 uppercase tracking-widest flex items-center justify-between">
+        <!-- Preview pane (hidden on mobile when input tab active) -->
+        <section id="panePreview"
+            class="hidden md:flex flex-col bg-white w-full md:w-1/2">
+            <div class="hidden md:flex px-4 py-2 bg-slate-100 border-b border-slate-200 text-xs font-semibold text-slate-500 uppercase tracking-widest items-center justify-between shrink-0">
                 <span>Live Preview</span>
-                <span class="text-[10px] bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full font-bold normal-case tracking-normal">KaTeX Active</span>
+                <span class="text-[10px] bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full font-bold normal-case tracking-normal">KaTeX</span>
             </div>
-            <div id="previewOutput" class="preview-pane flex-1 px-8 py-6 overflow-y-auto text-slate-800"></div>
+            <div id="previewOutput" class="preview-pane flex-1 px-5 py-5 md:px-8 overflow-y-auto text-slate-800"></div>
         </section>
 
     </main>
 
+    <!-- Mobile status toast -->
+    <div id="mobileStatus"
+        class="md:hidden fixed bottom-4 left-1/2 -translate-x-1/2 z-50
+               bg-slate-800 text-white text-xs font-medium px-4 py-2 rounded-full shadow-lg
+               opacity-0 pointer-events-none transition-opacity duration-300">
+    </div>
+
     <script>
-    // ─── Configuration ────────────────────────────────────────────────────────
-    // When the SPA is on GitHub Pages, point to the Vercel API URL.
-    // When served from Vercel itself, use relative path.
+    // ─── API endpoint ──────────────────────────────────────────────────────────
     const API_URL = (() => {
-        if (window.location.hostname.endsWith('github.io') ||
-            window.location.hostname.endsWith('github.com')) {
+        const h = window.location.hostname;
+        if (h.endsWith('github.io') || h.endsWith('github.com'))
             return 'https://paste-2-doc.vercel.app/api/convert';
-        }
-        return '/api/convert';  // same-origin (Vercel)
+        return '/api/convert';
     })();
 
     // ─── Elements ─────────────────────────────────────────────────────────────
-    const input     = document.getElementById('markdownInput');
-    const preview   = document.getElementById('previewOutput');
-    const exportBtn = document.getElementById('exportBtn');
-    const btnText   = document.getElementById('btnText');
-    const statusBar = document.getElementById('statusBar');
-    const clearBtn  = document.getElementById('clearBtn');
+    const input          = document.getElementById('markdownInput');
+    const preview        = document.getElementById('previewOutput');
+    const exportBtnD     = document.getElementById('exportBtnDesktop');
+    const exportBtnM     = document.getElementById('exportBtnMobile');
+    const btnTextD       = document.getElementById('btnTextDesktop');
+    const btnTextM       = document.getElementById('btnTextMobile');
+    const statusBar      = document.getElementById('statusBar');
+    const mobileStatus   = document.getElementById('mobileStatus');
+    const paneInput      = document.getElementById('paneInput');
+    const panePreview    = document.getElementById('panePreview');
+    const tabInputBtn    = document.getElementById('tabInputBtn');
+    const tabPreviewBtn  = document.getElementById('tabPreviewBtn');
 
-    // ─── Normalize AI math delimiters for preview ─────────────────────────────
-    // Converts \( \) and \[ \] to $ $ and $$ $$ for KaTeX auto-render.
+    // ─── Tab switching (mobile only) ──────────────────────────────────────────
+    let activeTab = 'input';
+
+    function switchTab(tab) {
+        activeTab = tab;
+        const isMobile = window.innerWidth < 768;
+        if (!isMobile) return;
+
+        if (tab === 'input') {
+            paneInput.classList.remove('hidden');
+            paneInput.classList.add('flex');
+            panePreview.classList.add('hidden');
+            panePreview.classList.remove('flex');
+            tabInputBtn.classList.add('active');
+            tabPreviewBtn.classList.remove('active');
+        } else {
+            panePreview.classList.remove('hidden');
+            panePreview.classList.add('flex');
+            paneInput.classList.add('hidden');
+            paneInput.classList.remove('flex');
+            tabPreviewBtn.classList.add('active');
+            tabInputBtn.classList.remove('active');
+            renderPreview(); // ensure preview is up to date when switching
+        }
+    }
+
+    // On resize: restore proper visibility for desktop
+    window.addEventListener('resize', () => {
+        if (window.innerWidth >= 768) {
+            paneInput.classList.remove('hidden');
+            paneInput.classList.add('flex', 'md:flex');
+            panePreview.classList.remove('hidden');
+            panePreview.classList.add('flex', 'md:flex');
+        } else {
+            switchTab(activeTab);
+        }
+    });
+
+    // ─── Math normaliser ──────────────────────────────────────────────────────
     function normalizeMath(text) {
-        // Use non-greedy DOTALL matches. Replace single-char by char to avoid
-        // JS replacement string pitfalls with $ signs.
         text = text.replace(/\\\(([\s\S]+?)\\\)/g, (_, m) => `$${m}$`);
         text = text.replace(/\\\[([\s\S]+?)\\\]/g, (_, m) => `$$${m}$$`);
         return text;
     }
 
-    // ─── Live Preview ─────────────────────────────────────────────────────────
+    // ─── Live preview ─────────────────────────────────────────────────────────
     function renderPreview() {
         const raw = input.value;
         if (!raw.trim()) { preview.innerHTML = ''; return; }
-
-        const normalized = normalizeMath(raw);
-        preview.innerHTML = marked.parse(normalized);
-
+        preview.innerHTML = marked.parse(normalizeMath(raw));
         renderMathInElement(preview, {
             delimiters: [
                 { left: '$$', right: '$$', display: true  },
@@ -141,31 +235,59 @@
     let previewTimer;
     input.addEventListener('input', () => {
         clearTimeout(previewTimer);
-        previewTimer = setTimeout(renderPreview, 120);
+        previewTimer = setTimeout(renderPreview, 150);
     });
 
-    clearBtn.addEventListener('click', () => {
-        input.value = '';
-        preview.innerHTML = '';
-    });
+    // Clear buttons
+    function doClear() { input.value = ''; preview.innerHTML = ''; }
+    document.getElementById('clearBtn')?.addEventListener('click', doClear);
+    document.getElementById('clearBtnMobile')?.addEventListener('click', doClear);
 
-    // ─── Status helper ────────────────────────────────────────────────────────
-    function setStatus(msg, colour = 'text-blue-200') {
+    // ─── Status helpers ────────────────────────────────────────────────────────
+    let mobileStatusTimer;
+    function setStatus(msg, ok = true) {
+        // Desktop
         statusBar.textContent = msg;
-        statusBar.className = `text-xs ${colour} opacity-100`;
+        statusBar.style.opacity = '1';
+        // Mobile toast
+        mobileStatus.textContent = msg;
+        mobileStatus.style.opacity = '1';
+        clearTimeout(mobileStatusTimer);
     }
-    function clearStatus() {
-        statusBar.style.opacity = '0';
+    function clearStatus(delay = 3500) {
+        mobileStatusTimer = setTimeout(() => {
+            statusBar.style.opacity = '0';
+            mobileStatus.style.opacity = '0';
+        }, delay);
     }
 
-    // ─── Export via Pandoc server ──────────────────────────────────────────────
-    exportBtn.addEventListener('click', async () => {
+    // ─── Download helper (mobile-safe) ────────────────────────────────────────
+    function triggerDownload(blob, filename) {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        a.style.display = 'none';
+        document.body.appendChild(a);
+        a.click();
+        // Fix: delay revoke so browser has time to start the download
+        setTimeout(() => {
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }, 5000);
+    }
+
+    // ─── Export ───────────────────────────────────────────────────────────────
+    async function doExport() {
         const markdown = input.value.trim();
         if (!markdown) { alert('Paste some content first.'); return; }
 
-        exportBtn.disabled = true;
-        btnText.textContent = 'Converting…';
-        setStatus('Sending to pandoc server…');
+        // Lock both buttons
+        exportBtnD.disabled = true;
+        exportBtnM.disabled = true;
+        btnTextD.textContent = 'Converting…';
+        btnTextM.textContent = '⏳';
+        setStatus('⏳ Converting…');
 
         try {
             const res = await fetch(API_URL, {
@@ -177,35 +299,32 @@
             if (!res.ok) {
                 let detail = '';
                 try { detail = (await res.json()).error; } catch (_) {}
-                throw new Error(detail || `Server error ${res.status}`);
+                throw new Error(detail || `Server ${res.status}`);
             }
 
-            setStatus('Packaging .docx…');
             const blob = await res.blob();
-            const url  = URL.createObjectURL(blob);
-            const a    = Object.assign(document.createElement('a'), {
-                href: url, download: 'AI_Response.docx'
-            });
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
+            triggerDownload(blob, 'AI_Response.docx');
 
-            setStatus('✓ Download complete', 'text-emerald-300');
-            setTimeout(clearStatus, 3000);
+            setStatus('✓ Downloading…');
+            clearStatus(4000);
 
         } catch (err) {
-            console.error(err);
-            setStatus('✗ ' + err.message, 'text-red-300');
-            setTimeout(clearStatus, 6000);
-            alert('Export failed: ' + err.message + '\n\nCheck the browser console for details.');
+            console.error('Export error:', err);
+            setStatus('✗ ' + err.message);
+            clearStatus(6000);
+            alert('Export failed: ' + err.message);
         } finally {
-            exportBtn.disabled = false;
-            btnText.textContent = 'Download .docx';
+            exportBtnD.disabled = false;
+            exportBtnM.disabled = false;
+            btnTextD.textContent = 'Download .docx';
+            btnTextM.textContent = '.docx';
         }
-    });
+    }
 
-    // Initial render
+    exportBtnD.addEventListener('click', doExport);
+    exportBtnM.addEventListener('click', doExport);
+
+    // ─── Init ─────────────────────────────────────────────────────────────────
     renderPreview();
     </script>
 </body>
