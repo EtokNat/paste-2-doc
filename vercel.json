@@ -1,5 +1,6 @@
 {
   "buildCommand": "bash build.sh",
+  "outputDirectory": ".",
   "functions": {
     "api/convert.js": {
       "maxDuration": 30,
