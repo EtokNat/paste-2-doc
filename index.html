@@ -215,10 +215,16 @@
         // Backslash delimiters → dollar delimiters
         text = text.replace(/\\\(([\s\S]+?)\\\)/g, (_, m) => `$${m}$`);
         text = text.replace(/\\\[([\s\S]+?)\\\]/g, (_, m) => `$$${m}$$`);
-        // LaTeX display environments → $$...$$ (KaTeX doesn't auto-render \begin{equation})
+        // LaTeX display environments → $$...$$
+        // equation/displaymath: strip wrapper (≡ $$...$$; KaTeX rejects \begin{equation} inside $$)
         text = text.replace(
-            /\\begin\{(equation\*?|align\*?|gather\*?|eqnarray\*?|multline\*?|flalign\*?|displaymath)\}([\s\S]+?)\\end\{\1\}/g,
+            /\\begin\{(equation\*?|displaymath)\}([\s\S]+?)\\end\{\1\}/g,
             (_, _env, m) => `$$${m.trim()}$$`
+        );
+        // align/gather/etc.: keep wrapper inside $$ — KaTeX needs it to interpret & and \\
+        text = text.replace(
+            /\\begin\{(align\*?|gather\*?|eqnarray\*?|multline\*?|flalign\*?)\}([\s\S]+?)\\end\{\1\}/g,
+            (_, env, m) => `$$\\begin{${env}}${m}\\end{${env}}$$`
         );
         // Strip boundary spaces inside $$ … $$ and $ … $ so both pandoc and
         // KaTeX see the content flush against the delimiter (pandoc's hard rule).

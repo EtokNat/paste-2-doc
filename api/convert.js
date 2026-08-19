@@ -11,12 +11,21 @@ function normalizeMath(text) {
     text = text.replace(/\\\[([\s\S]+?)\\\]/g, (_, m) => `$$${m}$$`);
 
     // 2. Convert LaTeX display-math environments → $$...$$
-    //    Pandoc in markdown mode parses \begin{equation}...\end{equation} as a
-    //    RawBlock "tex" and then SILENTLY DROPS it when writing DOCX.
-    //    Wrapping in $$...$$ makes pandoc treat the content as a Math element instead.
+    //    Pandoc drops \begin{equation}...\end{equation} as a RawBlock "tex" in DOCX.
+    //
+    //    Two cases:
+    //    a) equation / displaymath  →  strip wrapper (they are semantically identical
+    //       to $$...$$, and KaTeX does NOT support \begin{equation} inside display math)
+    //    b) align / gather / etc.   →  KEEP wrapper inside $$...$$  because KaTeX and
+    //       pandoc need the environment name to interpret & alignment and \\ line-breaks.
+    //       Stripping it leaves bare & and \\ that both renderers reject.
     text = text.replace(
-        /\\begin\{(equation\*?|align\*?|gather\*?|eqnarray\*?|multline\*?|flalign\*?|displaymath)\}([\s\S]+?)\\end\{\1\}/g,
+        /\\begin\{(equation\*?|displaymath)\}([\s\S]+?)\\end\{\1\}/g,
         (_, _env, m) => `$$${m.trim()}$$`
+    );
+    text = text.replace(
+        /\\begin\{(align\*?|gather\*?|eqnarray\*?|multline\*?|flalign\*?)\}([\s\S]+?)\\end\{\1\}/g,
+        (_, env, m) => `$$\\begin{${env}}${m}\\end{${env}}$$`
     );
 
     // 3. Fix pandoc's strict adjacency rule (tex_math_dollars):
