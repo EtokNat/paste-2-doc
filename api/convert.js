@@ -4,6 +4,7 @@ const { join } = require('path');
 const os = require('os');
 const crypto = require('crypto');
 const path = require('path');
+const COLWIDTH_LUA = require('./colwidth');
 
 function normalizeMath(text) {
     // 1. Backslash-paren/bracket → dollar delimiters  (\( \) and \[ \])
@@ -85,12 +86,14 @@ module.exports = async function handler(req, res) {
         const mdPath   = join(tmp, 'input.md');
         const docxPath = join(tmp, 'output.docx');
         writeFileSync(mdPath, normalized, 'utf8');
+        writeFileSync(join(tmp, 'colwidth.lua'), COLWIDTH_LUA);
 
         execFileSync(getPandoc(), [
             mdPath,
             '-o', docxPath,
             '-f', 'markdown+tex_math_dollars+raw_html',
             '-t', 'docx',
+            '--lua-filter', join(tmp, 'colwidth.lua'),
         ], { timeout: 20000 });
 
         const docxBytes = readFileSync(docxPath);

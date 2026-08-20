@@ -4,6 +4,7 @@ const { join } = require('path');
 const os = require('os');
 const crypto = require('crypto');
 const path = require('path');
+const COLWIDTH_LUA = require('./colwidth');
 
 // Complex LaTeX environments Google Docs cannot render from OMML
 const COMPLEX_ENV_RE = /\\begin\{(align\*?|aligned\*?|alignat\*?|alignedat\*?|gather\*?|gathered\*?|eqnarray\*?|multline\*?|flalign\*?|[BbpvV]?matrix|smallmatrix|cases\*?|split|CD)\}/;
@@ -11,6 +12,10 @@ const COMPLEX_ENV_RE = /\\begin\{(align\*?|aligned\*?|alignat\*?|alignedat\*?|ga
 // Fetch an SVG from CodeCogs and convert it to a proper RGB PNG via resvg.
 // CodeCogs PNG output is 4-bit palette-indexed which Google Docs cannot display;
 // the SVG output uses pure path elements and renders cleanly at any size.
+const BODY_FONT_PT = 12;   // pandoc DOCX body text size (word/styles.xml docDefaults)
+const CODECOGS_PT = 10;    // CodeCogs svg.image default = TeX \normalsize
+const RENDER_DPI = 300;
+
 async function fetchMathPng(latex) {
     const url = 'https://latex.codecogs.com/svg.image?' + encodeURIComponent(latex.trim());
     const res = await fetch(url, { signal: AbortSignal.timeout(9000) });
@@ -18,13 +23,19 @@ async function fetchMathPng(latex) {
     const svg = await res.text();
     if (!svg.includes('<svg')) throw new Error('CodeCogs returned invalid SVG');
 
+    // CodeCogs emits the natural size in points (e.g. width='28.97pt'). Scale the
+    // 10pt glyphs up to the 12pt body so the image matches surrounding text instead
+    // of being forced to a fixed 4in width (which blew short equations up ~10x).
+    const wMatch = svg.match(/width=['"]([\d.]+)pt/);
+    const widthIn = wMatch ? parseFloat(wMatch[1]) * (BODY_FONT_PT / CODECOGS_PT) / 72 : null;
+
     const { Resvg } = require('@resvg/resvg-js');
     const resvg = new Resvg(svg, {
         background: 'white',               // solid white — visible in dark mode
-        fitTo: { mode: 'width', value: 1200 }, // 1200px ÷ 4in = 300 DPI — crisp
+        fitTo: { mode: 'width', value: widthIn ? Math.round(widthIn * RENDER_DPI) : 1200 },
         font: { loadSystemFonts: false }   // SVG uses paths only — no fonts needed
     });
-    return Buffer.from(resvg.render().asPng());
+    return { png: Buffer.from(resvg.render().asPng()), widthIn };
 }
 
 function normalizeMath(text) {
@@ -103,11 +114,12 @@ module.exports = async function handler(req, res) {
             const result = pngResults[i];
             if (result.status === 'fulfilled') {
                 const imgPath = join(tmp, `eq_${i}.png`);
-                writeFileSync(imgPath, result.value);
-                // Standalone paragraph → pandoc uses Figure style (centred) in DOCX
-                // {width=5in} prevents pandoc from using the image DPI to compute a tiny size
+                writeFileSync(imgPath, result.value.png);
+                // Embed at the natural width (in) so the glyphs stay 12pt. Explicit
+                // width also stops pandoc from deriving a tiny size from the PNG DPI.
+                const width = result.value.widthIn != null ? `${result.value.widthIn}in` : '4in';
                 processed = processed.slice(0, start) +
-                    `\n\n![](${imgPath}){width=4in fig-align="center"}\n\n` +
+                    `\n\n![](${imgPath}){width=${width} fig-align="center"}\n\n` +
                     processed.slice(end);
             }
             // On failure: leave $$...$$ — pandoc converts it to OMML (best effort)
@@ -116,12 +128,14 @@ module.exports = async function handler(req, res) {
         const mdPath = join(tmp, 'input.md');
         const docxPath = join(tmp, 'output.docx');
         writeFileSync(mdPath, processed, 'utf8');
+        writeFileSync(join(tmp, 'colwidth.lua'), COLWIDTH_LUA);
 
         execFileSync(getPandoc(), [
             mdPath,
             '-o', docxPath,
             '-f', 'markdown+tex_math_dollars+raw_html',
             '-t', 'docx',
+            '--lua-filter', join(tmp, 'colwidth.lua'),
         ], { timeout: 25000 });
 
         const docxBytes = readFileSync(docxPath);
