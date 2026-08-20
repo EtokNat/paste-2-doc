@@ -7,6 +7,12 @@ const path = require('path');
 const COLWIDTH_LUA = require('./colwidth');
 
 function normalizeMath(text) {
+    // pandoc's texmath can't parse these amsmath commands; they'd leak as raw
+    // TeX into the DOCX. Map them to equivalents pandoc understands.
+    text = text.replace(/\\cfrac(?:\[[^\]]*\])?/g, '\\dfrac')
+               .replace(/\\dbinom/g, '\\binom')
+               .replace(/\\tbinom/g, '\\binom');
+
     // 1. Backslash-paren/bracket → dollar delimiters  (\( \) and \[ \])
     text = text.replace(/\\\(([\s\S]+?)\\\)/g, (_, m) => `$${m}$`);
     text = text.replace(/\\\[([\s\S]+?)\\\]/g, (_, m) => `$$${m}$$`);
