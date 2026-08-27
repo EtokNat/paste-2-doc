@@ -9,6 +9,9 @@
     "api/convert-gdocs.js": {
       "maxDuration": 30,
       "includeFiles": "api/pandoc"
+    },
+    "api/stats.js": {
+      "maxDuration": 10
     }
   }
 }
