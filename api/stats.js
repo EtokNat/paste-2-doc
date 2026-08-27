@@ -25,6 +25,7 @@ async function readAll() {
 async function writeAll(all) {
     await put(STATS_PATH, JSON.stringify(all), {
         access: 'private',
+        allowOverwrite: true,
         contentType: 'application/json',
         cacheControl: 'no-store',
     });
