@@ -41,7 +41,22 @@
         .preview-pane em { font-style: italic; }
         .preview-pane u  { text-decoration: underline; }
         .preview-pane .katex { font-size: 1.05em; }
-        .preview-pane .katex-display { margin: 0.9rem 0; overflow-x: auto; }
+        .preview-pane .katex-display { margin: 0.9rem 0; overflow-x: auto; text-align: center; }
+        .preview-pane img { display: block; margin: 0.9rem auto; max-width: 100%; }
+
+        /* Fix KaTeX fractions inside HTML tables */
+        /* 1. Tailwind CDN globally resets border-color to a grey; restore it so fraction bars are visible */
+        .katex * { border-color: currentColor; }
+        /* 2. KaTeX's vlist (used for fractions) is itself a <table>. Prevent the outer HTML table's
+              border-collapse:separate from leaking in and misaligning numerator/denominator */
+        .katex .vlist-t { border-collapse: collapse; }
+        /* 3. display-math ($$...$$) in a <td> becomes display:block with margins, inflating row heights;
+              collapse it back to inline so the cell renders normally */
+        td .katex-display, th .katex-display { display: inline; margin: 0; }
+        td .katex-display > .katex, th .katex-display > .katex { display: inline-block; }
+        /* 4. Table wrapper for horizontal scroll (added by JS below); prevents wide math from overflowing page */
+        .table-scroll-wrap { overflow-x: auto; overflow-y: hidden; width: 100%; margin: 1.2rem 0; }
+        .table-scroll-wrap table { margin: 0; }
 
         /* Tab active styles */
         .tab-btn { position: relative; flex: 1; padding: 0.65rem 0; font-size: 0.8rem; font-weight: 600; color: #64748b; background: white; border: none; cursor: pointer; transition: color 0.15s; }
@@ -295,6 +310,16 @@
         html = html.replace(new RegExp(`${TOK}(\\d+)E`, 'g'), (_, i) => mathStore[+i]);
 
         preview.innerHTML = html;
+
+        // Wrap each table in a scrollable div so wide math expressions don't overflow the page.
+        // Must happen before KaTeX renders so the wrapper is already in place.
+        preview.querySelectorAll('table').forEach(table => {
+            const wrap = document.createElement('div');
+            wrap.className = 'table-scroll-wrap';
+            table.parentNode.insertBefore(wrap, table);
+            wrap.appendChild(table);
+        });
+
         renderMathInElement(preview, {
             delimiters: [
                 { left: '$$', right: '$$', display: true  },
