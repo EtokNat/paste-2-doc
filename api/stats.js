@@ -56,7 +56,8 @@ module.exports = async function handler(req, res) {
             const src = SOURCES.has(source) ? source : 'vercel';
 
             const all = await readAll();
-            all[src][action] = (all[src][action] || 0) + 1;
+            const key = action === 'visit' ? 'visits' : action;
+            all[src][key] = (all[src][key] || 0) + 1;
             await writeAll(all);
             return res.json(all[src]);
         }
