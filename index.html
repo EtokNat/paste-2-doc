@@ -191,12 +191,11 @@
 
     <script>
     // ─── API endpoints ─────────────────────────────────────────────────────────
-    const BASE = (() => {
+    const SOURCE = (() => {
         const h = window.location.hostname;
-        return (h.endsWith('github.io') || h.endsWith('github.com'))
-            ? 'https://paste-2-doc.vercel.app/api'
-            : '/api';
+        return (h.endsWith('github.io') || h.endsWith('github.com')) ? 'github' : 'vercel';
     })();
+    const BASE = SOURCE === 'github' ? 'https://paste-2-doc.vercel.app/api' : '/api';
     const API_URL       = BASE + '/convert';
     const GDOCS_API_URL = BASE + '/convert-gdocs';
     const STATS_URL     = BASE + '/stats';
@@ -235,7 +234,7 @@
             const r = await fetch(STATS_URL, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action }),
+                body: JSON.stringify({ action, source: SOURCE }),
             });
             if (r.ok) applyStats(await r.json());
         } catch {}
@@ -244,7 +243,7 @@
     // Load stats on page load, and count visit once per session
     (async () => {
         try {
-            const r = await fetch(STATS_URL);
+            const r = await fetch(`${STATS_URL}?source=${SOURCE}`);
             if (r.ok) applyStats(await r.json());
         } catch {}
         if (!sessionStorage.getItem('p2d_visited')) {
