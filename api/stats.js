@@ -5,30 +5,59 @@ const VALID      = new Set(['visit', 'docx', 'gdocs']);
 const SOURCES    = new Set(['vercel', 'github']);
 const EMPTY      = () => ({ visits: 0, docx: 0, gdocs: 0 });
 
-async function readAll() {
-    const { blobs } = await list({ prefix: 'p2d-stats' });
-    const found = blobs.find(b => b.pathname === STATS_PATH);
-    if (!found) return { vercel: EMPTY(), github: EMPTY() };
-    // Use downloadUrl (signed) for private store; fall back to url
-    const r = await fetch(found.downloadUrl || found.url);
-    if (!r.ok) return { vercel: EMPTY(), github: EMPTY() };
-    const data = await r.json();
-    // Migrate old flat format { visits, docx, gdocs } → nested under 'vercel'
+// Warm-instance cache — persists across requests on the same function instance,
+// avoiding list() eventual-consistency lag and redundant network reads.
+let cachedAll = null;
+let blobUrl   = null;
+
+function normalize(data) {
     if (!data.vercel && !data.github) {
         return { vercel: { visits: data.visits || 0, docx: data.docx || 0, gdocs: data.gdocs || 0 }, github: EMPTY() };
     }
-    data.vercel = data.vercel || EMPTY();
-    data.github  = data.github  || EMPTY();
-    return data;
+    return { vercel: data.vercel || EMPTY(), github: data.github || EMPTY() };
+}
+
+async function authFetch(url) {
+    return fetch(url, {
+        headers: { Authorization: `Bearer ${process.env.BLOB_READ_WRITE_TOKEN}` },
+    });
+}
+
+async function readAll() {
+    // Warm path — in-memory from last write on this instance
+    if (cachedAll) return JSON.parse(JSON.stringify(cachedAll));
+
+    // Try direct URL if captured from a previous write this instance
+    if (blobUrl) {
+        try {
+            const r = await authFetch(blobUrl);
+            if (r.ok) return normalize(await r.json());
+        } catch {}
+    }
+
+    // Cold path — list() to discover the blob URL
+    try {
+        const { blobs } = await list({ prefix: 'p2d-stats' });
+        const found = blobs.find(b => b.pathname === STATS_PATH);
+        if (found) {
+            blobUrl = found.url;
+            const r = await authFetch(found.url);
+            if (r.ok) return normalize(await r.json());
+        }
+    } catch {}
+
+    return { vercel: EMPTY(), github: EMPTY() };
 }
 
 async function writeAll(all) {
-    await put(STATS_PATH, JSON.stringify(all), {
+    const result = await put(STATS_PATH, JSON.stringify(all), {
         access: 'private',
         allowOverwrite: true,
         contentType: 'application/json',
         cacheControl: 'no-store',
     });
+    blobUrl   = result.url;
+    cachedAll = all;
 }
 
 module.exports = async function handler(req, res) {
