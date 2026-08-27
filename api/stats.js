@@ -9,7 +9,8 @@ async function readAll() {
     const { blobs } = await list({ prefix: 'p2d-stats' });
     const found = blobs.find(b => b.pathname === STATS_PATH);
     if (!found) return { vercel: EMPTY(), github: EMPTY() };
-    const r = await fetch(found.url);
+    // Use downloadUrl (signed) for private store; fall back to url
+    const r = await fetch(found.downloadUrl || found.url);
     if (!r.ok) return { vercel: EMPTY(), github: EMPTY() };
     const data = await r.json();
     // Migrate old flat format { visits, docx, gdocs } → nested under 'vercel'
@@ -23,10 +24,9 @@ async function readAll() {
 
 async function writeAll(all) {
     await put(STATS_PATH, JSON.stringify(all), {
-        access: 'public',
-        allowOverwrite: true,
+        access: 'private',
         contentType: 'application/json',
-        cacheControlMaxAge: 0,
+        cacheControl: 'no-store',
     });
 }
 

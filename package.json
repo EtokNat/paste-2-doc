@@ -7,7 +7,7 @@
   },
   "dependencies": {
     "@resvg/resvg-js": "^2.6.2",
-    "@vercel/blob": "^0.27.0",
+    "@vercel/blob": "^2.8.0",
     "marked": "^18.0.10"
   }
 }
