@@ -41,7 +41,7 @@
         .preview-pane em { font-style: italic; }
         .preview-pane u  { text-decoration: underline; }
         .preview-pane .katex { font-size: 1.05em; }
-        .preview-pane .katex-display { margin: 0.9rem 0; overflow-x: auto; text-align: center; }
+        .preview-pane .katex-display { margin: 0; }
         .preview-pane img { display: block; margin: 0.9rem auto; max-width: 100%; }
 
         /* Fix KaTeX fractions inside HTML tables */
@@ -327,6 +327,20 @@
             ],
             throwOnError: false,
             errorColor: '#e11d48'
+        });
+
+        // Center display-math blocks. CSS text-align:center is unreliable here because
+        // Tailwind CDN's JIT engine re-injects styles after KaTeX renders and wins the
+        // cascade. The fix: wrap each .katex-display in a block div that owns the
+        // overflow scroll, set .katex-display to inline-block so the wrapper's
+        // text-align:center actually positions it — inline style beats any CSS.
+        preview.querySelectorAll('.katex-display').forEach(el => {
+            if (el.closest('td') || el.closest('th')) return;
+            const wrap = document.createElement('div');
+            wrap.style.cssText = 'text-align:center; overflow-x:auto; overflow-y:hidden; margin:0.9rem 0;';
+            el.parentNode.insertBefore(wrap, el);
+            wrap.appendChild(el);
+            el.style.cssText = 'display:inline-block; text-align:initial; margin:0; max-width:100%;';
         });
     }
 
